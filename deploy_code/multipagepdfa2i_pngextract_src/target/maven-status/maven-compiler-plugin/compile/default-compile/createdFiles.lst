@@ -1,0 +1,6 @@
+com/amazon/textract/pdf/FontInfo.class
+DemoLambda.class
+com/amazon/textract/pdf/ImageType.class
+com/amazon/textract/pdf/TextLine.class
+com/amazon/textract/pdf/PDFDocument.class
+DemoPdfFromS3Pdf.class
