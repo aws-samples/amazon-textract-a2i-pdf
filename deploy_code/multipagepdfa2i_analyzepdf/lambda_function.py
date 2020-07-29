@@ -53,17 +53,18 @@ def write_ai_response_to_bucket(event, data):
 
 def run_analyze_document(event):
     client = boto3.client('textract')
+    
     response = client.analyze_document(
         Document={
             'S3Object': {
                 'Bucket': event["bucket"],
-                'Name': event["key"]
+                'Name': event["process_key"]
             }
         },
         FeatureTypes=['FORMS'],
         HumanLoopConfig={
             'HumanLoopName': event["human_loop_id"],
-            'FlowDefinitionArn': event["SAGEMAKER_WORKFLOW_AUGMENTED_AI_ARN"],
+            'FlowDefinitionArn': os.environ['human_workflow_arn'],
             'DataAttributes': {
                 'ContentClassifiers': [
                     'FreeOfPersonallyIdentifiableInformation',
@@ -76,45 +77,38 @@ def run_analyze_document(event):
     if len(response["HumanLoopActivationOutput"]["HumanLoopActivationReasons"]) != 0:
         need_to_human_review = True
     return response, need_to_human_review
-
-
-def create_png_file(body):
-    s3 = boto3.resource('s3')
-
-    try:
-        s3.Object(body["bucket"], body["key"]).load()
-    except botocore.exceptions.ClientError as e:
-        client = boto3.client('lambda')
-        image_keys = client.invoke(
-            FunctionName='multipagepdfa2i_pngextract',
-            Payload=json.dumps({
-                "bucket": body["bucket"],
-                "original_upload_pdf": body["original_upload_pdf"],
-                "id": body["id"],
-                "cur_page_number": body["key"][body["key"].rfind("/")+1:-4]
-            })
-        )
-        return "created_new_png"
-    else:
-        return "already_there"
-
-    
-
     
 def lambda_handler(event, context):
-
     for record in event["Records"]:
         
         body = json.loads(record["body"])
-        body["human_loop_id"] = body["id"] + "i" + (body["key"][body["key"].rfind("/")+1:-4]).replace("_","")
         
-        create_png_file(body)
+        # body looks like:
+        # {
+        #     "bucket": "",
+        #     "wip_key": "",
+        #     "id": "",
+        #     "key": ""
+        # }
+
+        if body["wip_key"] == "single_image":
+            body["process_key"] = body["key"]
+            body["human_loop_id"] = body["id"] + "i0"
+            body["s3_location"] = "wip/" + body["id"] + "/0.png/ai/output.json"
+        else:
+            body["process_key"] = "wip/" + body["id"] + "/" + body["wip_key"] + ".png"
+            body["human_loop_id"] = body["id"] + "i" + body["wip_key"]
+            body["s3_location"] = body["process_key"] + "/ai/output.json"
+            
+        print("process_key:", body["process_key"])
+        print("human_loop_id:", body["human_loop_id"])
+        print("s3_location:", body["s3_location"])
+        
 
         response, need_to_human_review = run_analyze_document(body)
         kv_list = extract_data(response)
 
-        body["s3_location"] = body["key"] + "/ai/output.json"
-        s3_response = write_ai_response_to_bucket(body, kv_list)
+        write_ai_response_to_bucket(body, kv_list)
 
         if need_to_human_review is True:
             response = dump_task_token_in_dynamodb(body)
