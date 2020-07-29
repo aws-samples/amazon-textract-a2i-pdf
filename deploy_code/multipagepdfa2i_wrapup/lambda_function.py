@@ -45,24 +45,25 @@ def clear_old_s3_data(payload):
             )
     return "done"
 
-def get_original_uplolad_key(cur_id):
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('multipagepdfa2i_upload_ids')
-    response = table.query(KeyConditionExpression=Key("id").eq(cur_id))
-    upload_key = response['Items'][0]['key']
-    return upload_key
-
 def lambda_handler(event, context):
+    # Event looks like this:
+    # {
+    #     "id": "",
+    #     "bucket": "",
+    #     "key": "",
+    #     "extension": "",
+    #     "image_keys": [
+    #         ""
+    #     ]
+    # }
+
     #gater all of the data into a CSV
     data, payload = gather_and_combine_data(event)
-    
-    #get_original_uplolad_key... if you need it
-    original_uplolad_key = get_original_uplolad_key(payload["id"])
 
     #clean up old data
     clear_old_s3_data(payload)
 
     #output to s3
-    write_to_s3(data, payload, original_uplolad_key.replace("/", "-"))
+    write_to_s3(data, payload, payload["key"].replace("/", "-"))
 
     return payload

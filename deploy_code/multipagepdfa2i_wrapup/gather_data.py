@@ -82,10 +82,16 @@ def get_all_possible_files(event):
 
     payload["bucket"] = event["bucket"]
     payload["id"] = event["id"]
+    payload["key"] = event["key"]
 
     for item in event["image_keys"]:
-        possible_ai_output_key = item + "/ai/output.json"
-        possible_human_output_key = item + "/human/output.json"
+        if item == "single_image":
+            base_key = "wip/" + payload["id"] + "/0.png"
+        else:
+            base_key = "wip/" + payload["id"] + "/" + item + ".png"
+
+        possible_ai_output_key = base_key + "/ai/output.json"
+        possible_human_output_key = base_key + "/human/output.json"
 
         s3 = boto3.resource('s3')
 

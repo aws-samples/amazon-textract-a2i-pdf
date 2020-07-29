@@ -58,6 +58,14 @@ def get_token(payload):
     token = response['Items'][0]['callback_token']
     return token
 
+def create_final_dest(id, key):
+    extension = key[-3:].lower()
+    if extension is not "pdf":
+        final_dest = "wip/" + id + "/0.png"
+    else:
+        final_dest = key
+    return final_dest + "/human/output.json"
+
 def create_payload(event):
     payload = {}
     detail = event["detail"]
@@ -69,7 +77,7 @@ def create_payload(event):
     payload["response"] = get_s3_data(payload)
     payload["human_loop_id"] = payload["response"]["humanLoopName"]
     payload["id"] = payload["human_loop_id"][:payload["human_loop_id"].rfind("i")]
-    payload["final_dest"] = payload["response"]["inputContent"]["aiServiceRequest"]["document"]["s3Object"]["name"] + "/human/output.json"
+    payload["final_dest"] = create_final_dest(payload["id"], payload["response"]["inputContent"]["aiServiceRequest"]["document"]["s3Object"]["name"])
     payload["token"] = get_token(payload)
     return payload
 

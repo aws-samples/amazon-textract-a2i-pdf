@@ -18,7 +18,7 @@ npm install -g aws-cdk
 ```
 git clone https://github.com/aws-samples/amazon-textract-a2i-pdf
 ```
-3. Go to the folder multipagepdfa2i and enter the following: 
+3. Go to the folder amazon-textract-a2i-pdf and enter the following: 
 ```
 pip install -r requirements.txt
 ```
