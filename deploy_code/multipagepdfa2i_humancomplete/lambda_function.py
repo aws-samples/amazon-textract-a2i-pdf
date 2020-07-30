@@ -59,8 +59,8 @@ def get_token(payload):
     return token
 
 def create_final_dest(id, key):
-    extension = key[-3:].lower()
-    if extension is not "pdf":
+    prefix = key[:3].lower()
+    if prefix != "wip":
         final_dest = "wip/" + id + "/0.png"
     else:
         final_dest = key
