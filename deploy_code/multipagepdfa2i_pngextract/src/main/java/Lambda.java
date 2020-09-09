@@ -16,10 +16,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-// import com.amazonaws.services.lambda.runtime.LambdaLogger;
+import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import java.io.*; 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +28,16 @@ import java.lang.String;
 import com.google.gson.*;
 
 public class Lambda implements RequestHandler<Map<String,String>, String[]> {
+    Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     @Override
-    public String[] handleRequest(Map<String,String> event, Context ctx) {
+    public String[] handleRequest(Map<String,String> event, Context context) {
+        
+        LambdaLogger logger = context.getLogger();
+
+        logger.log("CONTEXT: " + gson.toJson(context));
+        logger.log("EVENT: " + gson.toJson(event));
+
         List<String> image_keys = new ArrayList<String>();
         try {
             String cur_id = event.get("id");
@@ -39,17 +45,17 @@ public class Lambda implements RequestHandler<Map<String,String>, String[]> {
             String cur_key = event.get("key");
 
             PdfFromS3Pdf s3Pdf = new PdfFromS3Pdf();
-
+            logger.log("INTERNAL_LOGGING: Attempting to run s3Pdf.run");
             image_keys = s3Pdf.run(cur_id, cur_bucket, cur_key);
-            
-            String[] return_arr = image_keys.toArray(new String[0]);
-            
-            // Gson gson = new Gson();
+            logger.log("INTERNAL_LOGGING: image_keys:" + gson.toJson(image_keys));
 
-            // return gson.toJson(image_keys);
+            String[] return_arr = image_keys.toArray(new String[0]);
+            logger.log("INTERNAL_LOGGING: return_arr:" + gson.toJson(return_arr));
+
             return return_arr;
         }
         catch (Exception e) {
+            logger.log("INTERNAL_ERROR: Ran into an error. Check logging.");
             e.printStackTrace();
             System.out.println(e.getMessage());
         }

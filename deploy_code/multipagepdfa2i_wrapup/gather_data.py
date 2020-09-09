@@ -20,6 +20,8 @@
 import json
 import boto3
 import botocore
+import os
+import logging
 
 def does_exsist(bucket, key):
     s3 = boto3.resource('s3')
@@ -110,7 +112,6 @@ def get_all_possible_files(event):
     return files, payload
 
 def gather_and_combine_data(event):
-    
     keys, payload = get_all_possible_files(event)
     base_image_keys = get_base_image_keys(payload["bucket"], keys)
     base_image_keys.sort()
