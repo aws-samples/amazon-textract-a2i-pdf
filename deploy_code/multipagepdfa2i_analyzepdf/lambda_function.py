@@ -22,6 +22,7 @@ import boto3
 import botocore
 import os
 from clean_data import extract_data
+import logging
 
 def invoke_to_get_back_to_stepfunction(event):
     client = boto3.client('stepfunctions')
@@ -79,46 +80,83 @@ def run_analyze_document(event):
     return response, need_to_human_review
     
 def lambda_handler(event, context):
-    for record in event["Records"]:
-        
-        body = json.loads(record["body"])
-        
-        # body looks like:
-        # {
-        #     "bucket": "",
-        #     "wip_key": "",
-        #     "id": "",
-        #     "key": ""
-        # }
-
-        if body["wip_key"] == "single_image":
-            body["process_key"] = body["key"]
-            body["human_loop_id"] = body["id"] + "i0"
-            body["s3_location"] = "wip/" + body["id"] + "/0.png/ai/output.json"
-        else:
-            body["process_key"] = "wip/" + body["id"] + "/" + body["wip_key"] + ".png"
-            body["human_loop_id"] = body["id"] + "i" + body["wip_key"]
-            body["s3_location"] = body["process_key"] + "/ai/output.json"
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    try:
+        logger.info("INTERNAL_LOGGING: event looks like:" + json.dumps(event, indent=3, default=str))
+        logger.info("INTERNAL_LOGGING: context looks like:" + json.dumps(context, indent=3, default=str))
+        for record in event["Records"]:
+            body = json.loads(record["body"])
             
-        print("process_key:", body["process_key"])
-        print("human_loop_id:", body["human_loop_id"])
-        print("s3_location:", body["s3_location"])
-        
+            # body looks like:
+            # {
+            #     "bucket": "",
+            #     "wip_key": "",
+            #     "id": "",
+            #     "key": ""
+            # }
 
-        response, need_to_human_review = run_analyze_document(body)
-        kv_list = extract_data(response)
+            if body["wip_key"] == "single_image":
+                body["process_key"] = body["key"]
+                body["human_loop_id"] = body["id"] + "i0"
+                body["s3_location"] = "wip/" + body["id"] + "/0.png/ai/output.json"
+            else:
+                body["process_key"] = "wip/" + body["id"] + "/" + body["wip_key"] + ".png"
+                body["human_loop_id"] = body["id"] + "i" + body["wip_key"]
+                body["s3_location"] = body["process_key"] + "/ai/output.json"
 
-        write_ai_response_to_bucket(body, kv_list)
+            logger.info("INTERNAL_LOGGING: body:" + json.dumps(body, indent=3, default=str))
+            
+            try:
+                logger.info("INTERNAL_LOGGING: Attempting run_analyze_document(body)")
+                response, need_to_human_review = run_analyze_document(body)
+                logger.info("INTERNAL_LOGGING: response:" + json.dumps(response, indent=3, default=str))
+                logger.info("INTERNAL_LOGGING: need_to_human_review:" + json.dumps(need_to_human_review, indent=3, default=str))
+            except:
+                logger.info("INTERNAL_ERROR: Ran into error running run_analyze_document(body)")
+                raise
 
-        if need_to_human_review is True:
-            response = dump_task_token_in_dynamodb(body)
-        if need_to_human_review is False:
-            response = invoke_to_get_back_to_stepfunction(body)
-        
-        client = boto3.client('sqs')
-        response = client.delete_message(
-            QueueUrl=os.environ['sqs_url'],
-            ReceiptHandle=record["receiptHandle"]
-        )
+            try:
+                logger.info("INTERNAL_LOGGING: Attempting extract_data(response)")
+                kv_list = extract_data(response)
+                logger.info("INTERNAL_LOGGING: kv_list:" + json.dumps(kv_list, indent=3, default=str))
+            except:
+                logger.info("INTERNAL_ERROR: Ran into error running extract_data(response)")
+                raise
+            
+            try:
+                logger.info("INTERNAL_LOGGING: Attempting write_ai_response_to_bucket(body, kv_list)")
+                write_ai_response_to_bucket(body, kv_list)
+            except:
+                logger.info("INTERNAL_ERROR: Ran into error running write_ai_response_to_bucket(body, kv_list)")
+                raise
 
-    return "all_done"
+            try:
+                if need_to_human_review is True:
+                    logger.info("INTERNAL_LOGGING: Attempting dump_task_token_in_dynamodb(body)")
+                    response = dump_task_token_in_dynamodb(body)
+                if need_to_human_review is False:
+                    logger.info("INTERNAL_LOGGING: Attempting invoke_to_get_back_to_stepfunction(body)")
+                    response = invoke_to_get_back_to_stepfunction(body)
+                logger.info("INTERNAL_LOGGING: response:" + json.dumps(response, indent=3, default=str))
+            except:
+                logger.info("INTERNAL_ERROR: Ran into error running either dump_task_token_in_dynamodb or invoke_to_get_back_to_stepfunction")
+                raise
+            
+            try:
+                logger.info("INTERNAL_LOGGING: Attempting to delete message from SQS")
+                client = boto3.client('sqs')
+                response = client.delete_message(
+                    QueueUrl=os.environ['sqs_url'],
+                    ReceiptHandle=record["receiptHandle"]
+                )
+            except:
+                logger.info("INTERNAL_ERROR: Failed to delete message from SQS")
+                raise
+
+        logger.info("INTERNAL_LOGGING_COMPELTE: Didn't run into any errors :)")
+        return "all_done"
+    except:
+        logger.info("INTERNAL_ERROR: Ran into an error. Check logging.")
+        return "INTERNAL_ERROR: Ran into an error. Check logging."
+

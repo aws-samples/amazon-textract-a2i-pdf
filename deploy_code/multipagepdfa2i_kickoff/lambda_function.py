@@ -21,6 +21,7 @@ import json
 import boto3
 import uuid
 import os
+import logging
 from urllib.parse import unquote, unquote_plus
 
 def start_step_function(payload):
@@ -49,27 +50,54 @@ def extract_event_data(record):
     return data
 
 def lambda_handler(event, context):
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
     try:
+        logger.info("INTERNAL_LOGGING: event looks like:" + json.dumps(event, indent=3, default=str))
+        logger.info("INTERNAL_LOGGING: context looks like:" + json.dumps(context, indent=3, default=str))
+
         # this is the sqs payload
         for record in event["Records"]:
             # these are the s3 payload
             for cur_record in json.loads(record["body"])["Records"]:
-                data = extract_event_data(cur_record)
-                extension = data["key"][-3:].lower()
-                if extension == "pdf" or extension == "png" or extension == "jpg":
-                    payload = {
-                        "id": data["id"],
-                        "bucket": data["bucket"],
-                        "key": data["key"],
-                        "extension": extension
-                    }
-                    response = start_step_function(payload)
-            # delete message from sqs
-            client = boto3.client('sqs')
-            response = client.delete_message(
-                QueueUrl=os.environ['sqs_url'],
-                ReceiptHandle=record["receiptHandle"]
-            )
-    except:
-        return "something didn't go right...."
+                logger.info("INTERNAL_LOGGING: here is cur_record from s3 payload:" + json.dumps(cur_record, indent=3, default=str))
+                try:
+                    # attempting to extract data from cur_record
+                    try:
+                        data = extract_event_data(cur_record)
+                        logger.info("INTERNAL_LOGGING: here is data from extract_event_data:" + json.dumps(data, indent=3, default=str))
+                    except:
+                        logger.info("INTERNAL_ERROR: Ran into an error with extract_event_data")
+                        raise
 
+                        
+
+                    # if the uploaded file has the right extension try to start the step functions
+                    extension = data["key"][-3:].lower()
+                    if extension == "pdf" or extension == "png" or extension == "jpg":
+                        payload = {
+                            "id": data["id"],
+                            "bucket": data["bucket"],
+                            "key": data["key"],
+                            "extension": extension
+                        }
+                        response = start_step_function(payload)
+                    try:
+                        # delete message from sqs
+                        client = boto3.client('sqs')
+                        response = client.delete_message(
+                            QueueUrl=os.environ['sqs_url'],
+                            ReceiptHandle=record["receiptHandle"]
+                        )
+                    except:
+                        logger.info("INTERNAL_ERROR: run into a problem deleting the message from sqs")
+                        raise
+                except:
+                    logger.info("INTERNAL_ERROR: Ran into an error. Check logging.")
+
+
+        logger.info("INTERNAL_LOGGING_COMPELTE: Didn't run into any errors :)")
+        return "INTERNAL_LOGGING_COMPELTE: Didn't run into any errors :)"
+    except:
+        logger.info("INTERNAL_ERROR: Ran into an error. Check logging.")
+        return 0
