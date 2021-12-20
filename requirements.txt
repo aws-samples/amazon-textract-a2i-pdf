@@ -1,5 +1,5 @@
 appdirs==1.4.3
-attrs==19.3.0
+attrs==21.2.0
 aws-cdk.assets==1.54.0
 aws-cdk.aws-cloudformation==1.54.0
 aws-cdk.aws-cloudwatch==1.54.0
